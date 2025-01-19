@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geometria Espacial 3D</title>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #f0f8ff;
+      font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      border: 1px solid #000;
+    }
+
+    .controls {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+
+    .controls button, .controls input {
+      margin: 5px;
+      padding: 5px 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .output {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(240, 240, 240, 0.9);
+      border: 1px solid #ccc;
+      width: 80%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="geometryCanvas"></canvas>
+  <div class="controls">
+    <button onclick="setShape('cube')">Cubo</button>
+    <button onclick="setShape('pyramid')">Pirâmide</button>
+    <button onclick="setShape('tetrahedron')">Tetraedro</button>
+    <button onclick="clearCanvas()">Limpar</button>
+    <button id="toggleRotation">Pausar</button>
+  </div>
+  <div class="controls">
+    <label for="inputLength">Dimensão (aresta/altura): </label>
+    <input type="number" id="inputLength" placeholder="Insira o valor" />
+    <button onclick="calculate()">Calcular</button>
+  </div>
+  <div class="output" id="output">
+    Escolha uma forma e insira uma dimensão para calcular suas propriedades.
+  </div>
+
+  <script>
+    const canvas = document.getElementById('geometryCanvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth * 0.8;
+    canvas.height = window.innerHeight * 0.6;
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    const shapes = {
+      cube: [
+        [-50, -50, -50], [50, -50, -50], [50, 50, -50], [-50, 50, -50],
+        [-50, -50, 50], [50, -50, 50], [50, 50, 50], [-50, 50, 50],
+      ],
+      pyramid: [
+        [-50, -50, 50], [50, -50, 50], [50, 50, 50], [-50, 50, 50], [0, 0, -50],
+      ],
+      tetrahedron: [
+        [0, 0, 50], [50, 0, -50], [-50, 0, -50], [0, 50, -50],
+      ],
+    };
+
+    let currentShape = null;
+
+    function project([x, y, z]) {
+      const fov = 200;
+      const scale = fov / (fov + z);
+      const x2d = x * scale + centerX;
+      const y2d = y * scale + centerY;
+      return [x2d, y2d];
+    }
+
+    function drawLine(p1, p2) {
+      const [x1, y1] = project(p1);
+      const [x2, y2] = project(p2);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    function drawShape(shape) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const connections = {
+        cube: [
+          [0, 1], [1, 2], [2, 3], [3, 0],
+          [4, 5], [5, 6], [6, 7], [7, 4],
+          [0, 4], [1, 5], [2, 6], [3, 7],
+        ],
+        pyramid: [
+          [0, 1], [1, 2], [2, 3], [3, 0],
+          [0, 4], [1, 4], [2, 4], [3, 4],
+        ],
+        tetrahedron: [
+          [0, 1], [1, 2], [2, 0],
+          [0, 3], [1, 3], [2, 3],
+        ],
+      };
+
+      connections[shape].forEach(([start, end]) => {
+        drawLine(shapes[shape][start], shapes[shape][end]);
+      });
+    }
+
+    function setShape(shape) {
+      currentShape = shape;
+      drawShape(shape);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      currentShape = null;
+    }
+
+    let angle = 0;
+    let isAnimating = true;
+    const rotationSpeed = 0.005;
+
+    document.getElementById('toggleRotation').addEventListener('click', () => {
+      isAnimating = !isAnimating;
+      document.getElementById('toggleRotation').textContent = isAnimating ? 'Pausar' : 'Iniciar';
+    });
+
+    function animate() {
+      if (currentShape && isAnimating) {
+        const rotationMatrix = (angle) => [
+          [Math.cos(angle), 0, Math.sin(angle)],
+          [0, 1, 0],
+          [-Math.sin(angle), 0, Math.cos(angle)],
+        ];
+
+        shapes[currentShape] = shapes[currentShape].map(([x, y, z]) => {
+          const [rx, ry, rz] = [0, 1, 2].map(
+            (i) => rotationMatrix(angle)[i][0] * x +
+                  rotationMatrix(angle)[i][1] * y +
+                  rotationMatrix(angle)[i][2] * z
+          );
+          return [rx, ry, rz];
+        });
+
+        drawShape(currentShape);
+      }
+
+      angle += rotationSpeed;
+      requestAnimationFrame(animate);
+    }
+
+    function calculate() {
+      const input = parseFloat(document.getElementById('inputLength').value);
+      const output = document.getElementById('output');
+
+      if (!currentShape || isNaN(input) || input <= 0) {
+        output.textContent = "Por favor, escolha uma forma e insira uma dimensão válida.";
+        return;
+      }
+
+      let result = "";
+
+      if (currentShape === 'cube') {
+        const volume = Math.pow(input, 3);
+        const area = 6 * Math.pow(input, 2);
+        result = `Cubo: Volume = ${volume.toFixed(2)}, Área = ${area.toFixed(2)}`;
+      } else if (currentShape === 'pyramid') {
+        const volume = (1 / 3) * Math.pow(input, 2) * (input / 2);
+        const area = Math.pow(input, 2) + 2 * input * Math.sqrt(Math.pow(input / 2, 2) + Math.pow(input, 2));
+        result = `Pirâmide: Volume = ${volume.toFixed(2)}, Área = ${area.toFixed(2)}`;
+      } else if (currentShape === 'tetrahedron') {
+        const volume = (Math.sqrt(2) / 12) * Math.pow(input, 3);
+        const area = Math.sqrt(3) * Math.pow(input, 2);
+        result = `Tetraedro: Volume = ${volume.toFixed(2)}, Área = ${area.toFixed(2)}`;
+      }
+
+      output.textContent = result;
+    }
+
+    animate();
+  </script>
+</body>
+</html>
